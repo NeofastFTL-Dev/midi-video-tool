@@ -73,17 +73,31 @@ jobs:
           set -euo pipefail
           ver=$(grep -m1 "versionName" app/build.gradle | sed "s/.*versionName '\([^']*\)'.*/\1/")
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             "dist/midi-video-generator-${ver}-debug.apk"
-          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
-            cp app/build/outputs/apk/release/app-release.apk \
-               "dist/midi-video-generator-${ver}.apk"
-          else
-            # No signing secrets configured: publish the unsigned build so the
-            # artifact still exists, under an obvious name.
-            cp app/build/outputs/apk/release/app-release-unsigned.apk \
-               "dist/midi-video-generator-${ver}-unsigned.apk"
-          fi
+          signed=app/build/outputs/apk/release/app-release.apk
+          case "$GITHUB_REF" in
+            refs/tags/*)
+              # A tagged release carries only the signed APK: the debug build has
+              # the same application id, so shipping both invites installing the
+              # wrong one.
+              if [ ! -f "$signed" ]; then
+                echo "::error::no signed release APK; signing secrets are required for a tagged release" >&2
+                exit 1
+              fi
+              cp "$signed" "dist/midi-video-generator-${ver}.apk"
+              ;;
+            *)
+              cp app/build/outputs/apk/debug/app-debug.apk \
+                 "dist/midi-video-generator-${ver}-debug.apk"
+              if [ -f "$signed" ]; then
+                cp "$signed" "dist/midi-video-generator-${ver}.apk"
+              else
+                # No signing secrets configured: publish the unsigned build so
+                # the artifact still exists, under an obvious name.
+                cp app/build/outputs/apk/release/app-release-unsigned.apk \
+                   "dist/midi-video-generator-${ver}-unsigned.apk"
+              fi
+              ;;
+          esac
           ls -l dist
 
       - name: Upload APKs
@@ -218,7 +232,14 @@ jobs:
         run: |
           set -euo pipefail
           ls -l dist
-          files=$(ls dist/*.apk)
+          # Defence in depth for tags: a debug APK shares the application id with
+          # the signed one, so it must never be attached to a release.
+          files=$(ls dist/*.apk | grep -v -- '-debug\.apk$' || true)
+          if [ -z "$files" ]; then
+            echo "::error::no signed APK to publish" >&2
+            exit 1
+          fi
+          echo "Publishing: $files"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" $files --clobber
           else

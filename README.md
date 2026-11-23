@@ -67,16 +67,20 @@ to `main`, every pull request and every `v*` tag:
 
 1. JVM unit tests.
 2. `assembleDebug` + `assembleRelease` (signed when the keystore secrets are set).
-3. APKs uploaded as the `midi-video-generator-apk` artifact.
+3. APKs uploaded as the `midi-video-generator-apk` artifact (tag builds skip the
+   debug APK).
 4. A second job boots an API 34 emulator and runs `connectedDebugAndroidTest`.
    `RenderSmokeTest` renders a three-note MIDI against the bundled 1.5 s
    H.264/AAC clip, asserts the MP4 is non-empty, has a video and an audio track,
    then re-opens it, checks the duration and decodes frame 0 — so MediaCodec
    decode, encode, the YUV transform and the muxer are exercised on real codecs,
    not just compiled. The render is uploaded as `render-smoke-output`.
-5. On a `v*` tag, a GitHub release is created and the APKs are attached. The tag
-   must match `versionName` in `app/build.gradle`. The release job waits for the
-   emulator job, so a tag cannot publish a build whose render path is broken.
+5. On a `v*` tag, a GitHub release is created and only the **signed** APK is
+   attached — the debug build shares the application id and is easy to install by
+   mistake, so it is never published. A tag without signing secrets fails instead
+   of releasing an unsigned build. The tag must match `versionName` in
+   `app/build.gradle`, and the release job waits for the emulator job, so a tag
+   cannot publish a build whose render path is broken.
 
 Secrets used by the workflow: `ANDROID_KEYSTORE_BASE64` (base64 of the `.jks`),
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
