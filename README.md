@@ -35,14 +35,16 @@ access, no tracking, no ads.
 ## Building
 
 ```bash
-./gradlew testDebugUnitTest     # pure-JVM tests for the MIDI parser, timeline and pitch detector
+./gradlew testDebugUnitTest      # pure-JVM tests for the MIDI parser, timeline and pitch detector
+./gradlew connectedDebugAndroidTest  # on-device render smoke test (needs a device/emulator)
 ./gradlew assembleDebug         # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew assembleRelease       # minified; signed when a keystore is configured
 ```
 
 `compileSdk 35`, `minSdk 29`, Java 17. The app itself has **no library
-dependencies** — only JUnit for tests — so the APK stays small and there is no
-framework to crash at startup.
+dependencies**, so the APK stays small and there is no framework to crash at
+startup. Tests use JUnit on the JVM and `androidx.test` for the instrumentation
+test — those live in the test APKs and never ship in the app.
 
 Release signing is opt-in and never stored in the repository. Provide a keystore
 through the environment and Gradle signs the release build:
@@ -66,8 +68,15 @@ to `main`, every pull request and every `v*` tag:
 1. JVM unit tests.
 2. `assembleDebug` + `assembleRelease` (signed when the keystore secrets are set).
 3. APKs uploaded as the `midi-video-generator-apk` artifact.
-4. On a `v*` tag, a GitHub release is created and the APKs are attached. The tag
-   must match `versionName` in `app/build.gradle`.
+4. A second job boots an API 34 emulator and runs `connectedDebugAndroidTest`.
+   `RenderSmokeTest` renders a three-note MIDI against the bundled 1.5 s
+   H.264/AAC clip, asserts the MP4 is non-empty, has a video and an audio track,
+   then re-opens it, checks the duration and decodes frame 0 — so MediaCodec
+   decode, encode, the YUV transform and the muxer are exercised on real codecs,
+   not just compiled. The render is uploaded as `render-smoke-output`.
+5. On a `v*` tag, a GitHub release is created and the APKs are attached. The tag
+   must match `versionName` in `app/build.gradle`. The release job waits for the
+   emulator job, so a tag cannot publish a build whose render path is broken.
 
 Secrets used by the workflow: `ANDROID_KEYSTORE_BASE64` (base64 of the `.jks`),
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
@@ -82,6 +91,10 @@ app/src/main/java/com/neofastftl/midivideogen/
 ├── VideoGenerator.java  decode → transform → H.264/AAC → MP4
 ├── AudioPcm.java        audio track → mono 16-bit PCM
 └── PitchDetector.java   NCCF pitch estimation
+
+app/src/androidTest/
+├── assets/smoke_source.mp4                          1.5 s H.264/AAC clip
+└── java/.../RenderSmokeTest.java                    real decode → encode → mux → decode
 ```
 
 ## Fixes in this revision

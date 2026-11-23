@@ -93,9 +93,93 @@ jobs:
           path: dist/*.apk
           if-no-files-found: error
 
+  emulator:
+    name: Emulator render test
+    # MediaCodec cannot run on the JVM, so this job renders a real MP4 on an
+    # API 34 emulator: it decodes the bundled source clip, encodes + muxes the
+    # MIDI-synced video, then re-opens the file and decodes frame 0.
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;34.0.0'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check hardware acceleration
+        run: |
+          set -euo pipefail
+          if [ ! -e /dev/kvm ]; then
+            echo "::error::/dev/kvm is not available; the emulator cannot start"
+            exit 1
+          fi
+          ls -l /dev/kvm
+
+      - name: Render a short MIDI video on the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          # swiftshader keeps the GPU out of the equation; the render itself is
+          # software (YUV buffers), so no host GL is needed.
+          emulator-options: >-
+            -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
+            -camera-back none -camera-front none
+          script: ./gradlew --no-daemon connectedDebugAndroidTest
+
+      - name: Pull the rendered MP4
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          adb exec-out run-as com.neofastftl.midivideogen \
+            cat files/smoke-render.mp4 > dist/smoke-render.mp4 || true
+          if [ -s dist/smoke-render.mp4 ]; then
+            ls -l dist/smoke-render.mp4
+            if command -v ffprobe >/dev/null 2>&1; then
+              ffprobe -hide_banner -loglevel error \
+                -show_entries stream=codec_type,codec_name,width,height \
+                -of default=noprint_wrappers=1 dist/smoke-render.mp4 || true
+            fi
+          else
+            echo "::warning::the test did not leave a render behind"
+            rm -f dist/smoke-render.mp4
+          fi
+
+      - name: Upload the rendered MP4
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: render-smoke-output
+          path: dist/smoke-render.mp4
+          if-no-files-found: warn
+
+      - name: Upload emulator test reports
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: emulator-test-reports
+          path: |
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: ignore
+
   release:
     name: Publish release
-    needs: build
+    needs: [build, emulator]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
