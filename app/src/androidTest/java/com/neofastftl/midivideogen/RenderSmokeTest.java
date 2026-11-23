@@ -4,12 +4,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.media.MediaExtractor;
 import android.media.MediaFormat;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.Environment;
+import android.provider.MediaStore;
 import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -23,6 +26,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -159,25 +163,38 @@ public class RenderSmokeTest {
         return target;
     }
 
-    /** Leaves a copy in app-private storage so CI can pull it with run-as. */
+    /**
+     * Publishes the render to Download/ so CI can pull it after the run. It
+     * goes through MediaStore on purpose: Gradle uninstalls the app once the
+     * test finishes, which deletes app-private files.
+     */
     private static void publishForCi(Context app, File render) {
+        Uri target = null;
         try {
-            File dir = app.getFilesDir();
-            if (dir == null) {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Downloads.DISPLAY_NAME, "smoke-render.mp4");
+            values.put(MediaStore.Downloads.MIME_TYPE, "video/mp4");
+            values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+            target = app.getContentResolver()
+                    .insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+            if (target == null) {
+                Log.w(TAG, "could not create the Download entry for the CI artifact");
                 return;
             }
-            File target = new File(dir, "smoke-render.mp4");
-            try (InputStream in = new FileInputStream(render);
-                 OutputStream out = new FileOutputStream(target)) {
+            OutputStream out = app.getContentResolver().openOutputStream(target);
+            if (out == null) {
+                throw new IOException("the Download entry could not be opened");
+            }
+            try (InputStream in = new FileInputStream(render); OutputStream sink = out) {
                 byte[] buffer = new byte[8192];
                 int n;
                 while ((n = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, n);
+                    sink.write(buffer, 0, n);
                 }
             }
-            Log.i(TAG, "copied the render to " + target.getAbsolutePath());
+            Log.i(TAG, "published the render to " + target);
         } catch (Exception e) {
-            Log.w(TAG, "could not copy the render for the CI artifact", e);
+            Log.w(TAG, "could not publish the render for CI", e);
         }
     }
 
