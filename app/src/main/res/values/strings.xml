@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MIDI Video Generator</string>
+    <string name="pick_midi">1. Pick a MIDI file</string>
+    <string name="pick_video">2. Pick a video file</string>
+    <string name="pick_folder">3. Choose where to save</string>
+    <string name="folder_default">Saving to: Movies downloads (default)</string>
+    <string name="folder_fmt">Saving to: %s</string>
+    <string name="track_selection">4. Track selection</string>
+    <string name="flip_mode">Horizontal flip mode</string>
+    <string name="play_mode">Video loop mode</string>
+    <string name="base_pitch">Base pitch (MIDI note of the video\'s original voice)</string>
+    <string name="detect_pitch">Auto</string>
+    <string name="detecting_pitch">Detecting…</string>
+    <string name="pitch_detected_fmt">Detected base pitch: %s</string>
+    <string name="pitch_detect_failed">No confident pitch found — set it manually</string>
+    <string name="pitch_out_of_range">Detected %s — outside the slider range; set it manually</string>
+    <string name="pick_video_first">Pick a video first</string>
+    <string name="last_note_length">Last note length adjustment</string>
+    <string name="generate">Generate video</string>
+    <string name="generating">Generating video…</string>
+    <string name="done">Video generation complete!</string>
+    <string name="saved_to">Saved to %s</string>
+    <string name="no_track">No tracks found in this MIDI file.</string>
+    <string name="no_notes">The selected track has no notes.</string>
+    <string name="err_read_midi">Could not read the MIDI file.</string>
+    <string name="err_read_midi_fmt">Could not read the MIDI file: %s</string>
+    <string name="err_encode">Video generation failed: %s</string>
+    <string name="generating_note">Every note carries the source audio, pitch-shifted to the note\'s pitch — like the original tool.</string>
+    <string name="picked_video_fmt">Picked video: %s</string>
+    <string name="track_unnamed">Unnamed</string>
+    <string name="track_notes_fmt">%1$s — %2$d notes</string>
+    <string name="loading_midi">Reading MIDI…</string>
+    <string name="progress_fmt">%1$d / %2$d notes rendered</string>
+    <string name="saved_fallback">Saved to %s</string>
+    <string name="flip_alternate">Alternate flips every note</string>
+    <string name="flip_never">Never flip</string>
+    <string name="flip_always">Flip every note</string>
+    <string name="flip_random">Random flip</string>
+    <string name="loop_restart">Restart the video on every note</string>
+    <string name="loop_play_through">Play the video through to the end</string>
+</resources>
