@@ -152,18 +152,15 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
             -camera-back none -camera-front none
-          # The render is copied out here, while the emulator is still running:
-          # the action kills it as soon as this script returns.
+          # The action runs each line of this script as its own command, so
+          # every line is self-contained. The file is copied out here because
+          # the emulator is killed as soon as the script returns.
           script: |
-            set -euo pipefail
             ./gradlew --no-daemon connectedDebugAndroidTest
             mkdir -p "$GITHUB_WORKSPACE/dist"
             adb shell ls -l /sdcard/Download/
-            if adb shell test -s /sdcard/Download/smoke-render.mp4; then
-              adb exec-out cat /sdcard/Download/smoke-render.mp4 \
-                > "$GITHUB_WORKSPACE/dist/smoke-render.mp4"
-            fi
-            ls -l "$GITHUB_WORKSPACE/dist/" || true
+            adb exec-out cat /sdcard/Download/smoke-render.mp4 > "$GITHUB_WORKSPACE/dist/smoke-render.mp4"
+            ls -l "$GITHUB_WORKSPACE/dist/"
             adb logcat -d | grep -E "RenderSmokeTest|VideoGenerator" | tail -20 || true
 
       - name: Inspect the rendered MP4
