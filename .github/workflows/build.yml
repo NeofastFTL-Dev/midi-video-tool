@@ -152,25 +152,30 @@ jobs:
           emulator-options: >-
             -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim
             -camera-back none -camera-front none
-          script: ./gradlew --no-daemon connectedDebugAndroidTest
+          # The render is copied out here, while the emulator is still running:
+          # the action kills it as soon as this script returns.
+          script: |
+            set -euo pipefail
+            ./gradlew --no-daemon connectedDebugAndroidTest
+            mkdir -p "$GITHUB_WORKSPACE/dist"
+            adb exec-out run-as com.neofastftl.midivideogen \
+              cat files/smoke-render.mp4 > "$GITHUB_WORKSPACE/dist/smoke-render.mp4"
+            ls -l "$GITHUB_WORKSPACE/dist/smoke-render.mp4"
+            adb logcat -d | grep -E "RenderSmokeTest|VideoGenerator" | tail -20 || true
 
-      - name: Pull the rendered MP4
+      - name: Inspect the rendered MP4
         if: always()
         run: |
           set -euo pipefail
-          mkdir -p dist
-          adb exec-out run-as com.neofastftl.midivideogen \
-            cat files/smoke-render.mp4 > dist/smoke-render.mp4 || true
-          if [ -s dist/smoke-render.mp4 ]; then
-            ls -l dist/smoke-render.mp4
-            if command -v ffprobe >/dev/null 2>&1; then
-              ffprobe -hide_banner -loglevel error \
-                -show_entries stream=codec_type,codec_name,width,height \
-                -of default=noprint_wrappers=1 dist/smoke-render.mp4 || true
-            fi
-          else
-            echo "::warning::the test did not leave a render behind"
-            rm -f dist/smoke-render.mp4
+          if [ ! -s dist/smoke-render.mp4 ]; then
+            echo "::error::the test did not leave a render behind"
+            exit 1
+          fi
+          ls -l dist/smoke-render.mp4
+          if command -v ffprobe >/dev/null 2>&1; then
+            ffprobe -hide_banner -loglevel error \
+              -show_entries stream=codec_type,codec_name,width,height,duration \
+              -of default=noprint_wrappers=1 dist/smoke-render.mp4
           fi
 
       - name: Upload the rendered MP4
@@ -183,7 +188,8 @@ jobs:
 
       - name: Upload emulator test reports
         uses: actions/upload-artifact@v4
-        if: failure()
+        # Always: the report is how you confirm the test really ran.
+        if: always()
         with:
           name: emulator-test-reports
           path: |
